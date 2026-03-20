@@ -2,7 +2,6 @@ import axios from 'axios';
 import { getStoredTokens, setStoredTokens, clearStoredTokens } from '../context/tokenStorage';
 import { handleMockRequest } from '../mocks/mockHandlers';
 
-// Mock mode: active when VITE_MOCK_API=true OR no real API URL is configured
 const MOCK_MODE =
   import.meta.env.VITE_MOCK_API === 'true' ||
   !import.meta.env.VITE_API_BASE_URL;
@@ -14,10 +13,8 @@ export const httpClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Custom adapter: short-circuits all requests to the mock handler
 if (MOCK_MODE) {
   httpClient.defaults.adapter = async (config: any) => {
-    // Attach auth header from stored tokens if present
     const tokens = getStoredTokens();
     if (tokens?.access) {
       config.headers = config.headers ?? {};
@@ -27,7 +24,6 @@ if (MOCK_MODE) {
   };
 }
 
-// Real-network interceptors (only active when NOT in mock mode)
 if (!MOCK_MODE) {
   httpClient.interceptors.request.use((config) => {
     const tokens = getStoredTokens();
