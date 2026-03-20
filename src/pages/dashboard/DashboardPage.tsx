@@ -1,263 +1,204 @@
-import React from 'react';
-import { TrendingUp, TrendingDown, Flame, BookOpen, AlertCircle } from 'lucide-react';
-import { AppLayout } from '../../layouts/AppLayout';
-import { Card } from '../../components/ui/Card';
-import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
-import { useDashboard } from '../../hooks/useDashboard';
 import { useNavigate } from 'react-router-dom';
-import {
-  GpaTrendChart,
-  WeeklyTasksChart,
-  StudyTimeByCourseChart,
-} from '../../components/dashboard';
+import { motion } from 'framer-motion';
+import { TrendingUp, TrendingDown, Calendar, CheckCircle2, Clock, AlertCircle, BookOpen, ArrowRight } from 'lucide-react';
+import { useDashboard } from '../../hooks/useDashboard';
+import { useAuth } from '../../hooks/useAuth';
+import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip, BarChart, Bar } from 'recharts';
+import { Badge } from '../../components/ui/Badge';
 
-const DASHBOARD_HERO_IMAGE =
-  'https://d2xsxph8kpxj0f.cloudfront.net/310519663445009235/mqrjtnLTPuV8W9rpRJHu95/neural_canvas_dashboard_hero-dhThs236mvJXuRKrAjSRGc.webp';
+const stagger = { animate: { transition: { staggerChildren: 0.07 } } };
+const fadeUp = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
 
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  trend?: string;
-  icon: React.ReactNode;
-  variant?: 'default' | 'success' | 'warning';
-}
+export function DashboardPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { overview, loading } = useDashboard();
 
-const StatCard: React.FC<StatCardProps> = ({
-  title,
-  value,
-  trend,
-  icon,
-  variant = 'default',
-}) => {
-  const borderColors = {
-    default: 'border-l-indigo-neon-600',
-    success: 'border-l-success',
-    warning: 'border-l-warning',
-  };
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName = user?.first_name || 'there';
 
-  return (
-    <Card variant="elevated" className={`border-l-4 ${borderColors[variant]}`}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-gray-400 text-sm mb-2">{title}</p>
-          <p className="text-4xl font-bold text-white">{value}</p>
-          {trend && (
-            <p className="text-teal-neon-600 text-xs mt-2 font-medium">{trend}</p>
-          )}
-        </div>
-        <div className="text-indigo-neon-600 opacity-50">{icon}</div>
-      </div>
-    </Card>
-  );
-};
+  const gpaTrend = overview?.gpa_trend || [];
+  const currentGpa = typeof overview?.current_gpa === 'number' ? overview.current_gpa : null;
 
-interface TimelineItemProps {
-  priority: 'high' | 'medium' | 'low';
-  title: string;
-  dueDate: string;
-  course?: string;
-}
+  const gpaDirection = gpaTrend.length >= 2
+    ? gpaTrend[gpaTrend.length - 1].gpa > gpaTrend[0].gpa ? 'up' : 'down'
+    : 'neutral';
 
-const TimelineItem: React.FC<TimelineItemProps> = ({
-  priority,
-  title,
-  dueDate,
-  course,
-}) => {
-  const priorityColors = {
-    high: 'bg-danger',
-    medium: 'bg-warning',
-    low: 'bg-success',
-  };
+  const upcomingDeadlines = overview?.upcoming_deadlines?.slice(0, 5) || [];
+  const weeklyStats = overview?.weekly_task_stats || [];
+  const studyTime = overview?.study_time_by_course || [];
 
-  return (
-    <div className="flex gap-4 items-start py-3 border-b border-void-700 last:border-b-0">
-      <div className={`w-3 h-3 rounded-full mt-2 flex-shrink-0 ${priorityColors[priority]}`} />
-      <div className="flex-1 min-w-0">
-        <p className="text-white font-medium text-sm">{title}</p>
-        <div className="flex items-center gap-2 mt-1">
-          <p className="text-gray-500 text-xs">Due {dueDate}</p>
-          {course && <Badge variant="default">{course}</Badge>}
-        </div>
-      </div>
+  const next3 = [
+    ...(overview?.weekly_tasks || []),
+    ...(overview?.upcoming_deadlines || []),
+  ]
+    .filter(t => t.due_at)
+    .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())
+    .slice(0, 3);
+
+  const totalCompleted = weeklyStats.reduce((s, d) => s + d.completed, 0);
+  const totalPlanned = weeklyStats.reduce((s, d) => s + d.planned, 0);
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-screen" style={{ background: '#080B14' }}>
+      <div className="w-10 h-10 rounded-full border-2 animate-spin" style={{ borderColor: 'rgba(108,99,255,0.3)', borderTopColor: '#6C63FF' }} />
     </div>
   );
-};
-
-export const DashboardPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { overview, loading, error } = useDashboard();
-
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="p-6 lg:p-12">
-          <div className="animate-pulse space-y-8">
-            <div className="h-32 bg-glass rounded-2xl" />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-32 bg-glass rounded-2xl" />
-              ))}
-            </div>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  if (error) {
-    return (
-      <AppLayout>
-        <div className="p-6 lg:p-12">
-          <Card variant="glass" className="border-danger/30 bg-danger/5">
-            <div className="flex gap-4">
-              <AlertCircle className="text-danger flex-shrink-0" size={24} />
-              <div>
-                <h3 className="text-white font-bold mb-1">Failed to load dashboard</h3>
-                <p className="text-gray-400 text-sm">Please try refreshing the page</p>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  const gpa = overview?.gpa || 0;
-  const gpaTrend = overview?.gpa_trend || 0;
-  const assignmentsDue = overview?.assignments_due || 0;
-  const studyStreak = overview?.study_streak || 0;
-  const upcomingDeadlines = overview?.upcoming_deadlines || [];
-  const courses = overview?.courses || [];
 
   return (
-    <AppLayout>
-      <div className="p-6 lg:p-12">
-        {/* Hero Zone */}
-        <div
-          className="rounded-2xl bg-cover bg-center relative mb-12 overflow-hidden"
-          style={{
-            backgroundImage: `url(${DASHBOARD_HERO_IMAGE})`,
-            minHeight: '200px',
-          }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-r from-void-950/60 to-transparent" />
-          <div className="relative z-10 flex flex-col justify-center h-full p-8 lg:p-12">
-            <h1 className="text-4xl lg:text-5xl font-bold text-white mb-2">
-              Good morning, Alex
-            </h1>
-            <p className="text-gray-300">
-              {new Date().toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-              })}
+    <motion.div variants={stagger} initial="initial" animate="animate" className="p-6 lg:p-8 max-w-7xl mx-auto">
+
+      {/* Hero */}
+      <motion.div variants={fadeUp} className="relative rounded-3xl overflow-hidden mb-8 p-8 lg:p-10"
+        style={{ background: 'linear-gradient(135deg, rgba(108,99,255,0.08) 0%, rgba(0,0,0,0) 60%, rgba(0,210,200,0.06) 100%)', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl" style={{ background: 'rgba(108,99,255,0.07)' }} />
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium mb-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
-            <div className="mt-4">
-              <Badge variant="info">GPA: {gpa.toFixed(2)}</Badge>
+            <h1 className="font-bold text-3xl lg:text-4xl text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
+              {greeting},{' '}
+              <span style={{ background: 'linear-gradient(135deg,#6C63FF,#00D2C8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                {firstName}
+              </span>
+            </h1>
+          </div>
+          {currentGpa !== null && (
+            <div className="flex items-center gap-3 px-6 py-4 rounded-2xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              {gpaDirection === 'up'
+                ? <TrendingUp className="w-5 h-5" style={{ color: '#00D2C8' }} />
+                : <TrendingDown className="w-5 h-5" style={{ color: '#fb7185' }} />}
+              <div>
+                <p className="text-xs uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Current GPA</p>
+                <p className="font-bold text-2xl text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{currentGpa.toFixed(2)}</p>
+              </div>
             </div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Stat strip */}
+      <motion.div variants={fadeUp} className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {[
+          { label: 'Upcoming', value: upcomingDeadlines.length, color: '#6C63FF' },
+          { label: 'Tasks done', value: `${totalCompleted}/${totalPlanned}`, color: '#00D2C8' },
+          { label: 'Courses', value: studyTime.length, color: '#f59e0b' },
+          { label: 'At risk', value: studyTime.filter(c => c.hours < 5).length, color: studyTime.filter(c => c.hours < 5).length > 0 ? '#fb7185' : '#00D2C8' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid rgba(255,255,255,0.07)`, borderLeft: `4px solid ${color}` }}>
+            <p className="font-bold text-2xl text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>{value}</p>
+            <p className="text-xs uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</p>
+          </div>
+        ))}
+      </motion.div>
+
+      {/* Charts */}
+      <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="lg:col-span-2 rounded-2xl p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <h2 className="font-semibold text-white text-lg mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>GPA Trend</h2>
+          <p className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.4)' }}>Across all semesters</p>
+          <ResponsiveContainer width="100%" height={160}>
+            <AreaChart data={gpaTrend}>
+              <defs>
+                <linearGradient id="gpaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6C63FF" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#6C63FF" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="term" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: '#0D1117', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 12 }} />
+              <Area type="monotone" dataKey="gpa" stroke="#6C63FF" strokeWidth={2} fill="url(#gpaGrad)" dot={{ fill: '#6C63FF', strokeWidth: 0, r: 4 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="rounded-2xl p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <h2 className="font-semibold text-white text-lg mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>Weekly Tasks</h2>
+          <p className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.4)' }}>Completed vs planned</p>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={weeklyStats} barSize={6} barGap={2}>
+              <XAxis dataKey="week" tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: '#0D1117', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 12 }} />
+              <Bar dataKey="planned" fill="rgba(108,99,255,0.2)" radius={[4,4,0,0]} />
+              <Bar dataKey="completed" fill="#6C63FF" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </motion.div>
+
+      {/* Bottom row */}
+      <motion.div variants={fadeUp} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Next tasks */}
+        <div className="rounded-2xl p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="font-semibold text-white text-lg" style={{ fontFamily: 'Syne, sans-serif' }}>Next up</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>Your immediate priorities</p>
+            </div>
+            <button onClick={() => navigate('/planner')} className="text-xs flex items-center gap-1 transition-colors" style={{ color: '#6C63FF' }}>
+              View all <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+          <div className="space-y-3">
+            {next3.length > 0 ? next3.map((task, i) => (
+              <motion.div key={task.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                className="flex items-center gap-4 p-3 rounded-xl transition-colors"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(108,99,255,0.15)' }}>
+                  <Clock className="w-4 h-4" style={{ color: '#6C63FF' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{task.title}</p>
+                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    Due {new Date(task.due_at!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </p>
+                </div>
+                {'priority' in task && (
+                  <Badge variant={task.priority === 'high' ? 'rose' : task.priority === 'medium' ? 'amber' : 'default'}>
+                    {task.priority}
+                  </Badge>
+                )}
+              </motion.div>
+            )) : (
+              <div className="text-center py-8">
+                <CheckCircle2 className="w-8 h-8 mx-auto mb-3" style={{ color: '#00D2C8' }} />
+                <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>All caught up!</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <StatCard
-            title="Current GPA"
-            value={gpa.toFixed(2)}
-            trend={gpaTrend > 0 ? `+${gpaTrend.toFixed(2)}` : `${gpaTrend.toFixed(2)}`}
-            icon={<TrendingUp size={24} />}
-            variant={gpaTrend > 0 ? 'success' : 'warning'}
-          />
-          <StatCard
-            title="Assignments Due"
-            value={assignmentsDue}
-            trend="This week"
-            icon={<BookOpen size={24} />}
-          />
-          <StatCard
-            title="Study Streak"
-            value={`${studyStreak} days`}
-            trend="Keep it up!"
-            icon={<Flame size={24} />}
-            variant="success"
-          />
-        </div>
-
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
-          <Card variant="glass">
-            <h3 className="text-xl font-bold text-white mb-6">GPA Trend</h3>
-            <GpaTrendChart />
-          </Card>
-
-          <Card variant="glass">
-            <h3 className="text-xl font-bold text-white mb-6">Study Time by Course</h3>
-            <StudyTimeByCourseChart />
-          </Card>
-        </div>
-
-        {/* Weekly Tasks Chart */}
-        <Card variant="glass" className="mb-12">
-          <h3 className="text-xl font-bold text-white mb-6">Weekly Tasks</h3>
-          <WeeklyTasksChart />
-        </Card>
-
-        {/* Next Tasks Timeline */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card variant="glass">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">Next Tasks</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/planner')}
-              >
-                View all →
-              </Button>
-            </div>
-            <div className="space-y-0">
-              {upcomingDeadlines.slice(0, 5).map((deadline: any, i: number) => (
-                <TimelineItem
-                  key={i}
-                  priority={deadline.priority || 'medium'}
-                  title={deadline.title}
-                  dueDate={new Date(deadline.due_date).toLocaleDateString()}
-                  course={deadline.course}
-                />
-              ))}
-            </div>
-          </Card>
-
-          {/* Courses Overview */}
-          <Card variant="glass">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">Your Courses</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate('/planner')}
-              >
-                View all →
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {courses.slice(0, 5).map((course: any, i: number) => (
-                <div
-                  key={i}
-                  className="bg-void-800 rounded-lg p-3 flex items-center justify-between hover:bg-void-750 transition-all cursor-pointer"
-                >
-                  <div>
-                    <p className="text-white text-sm font-medium">{course.name}</p>
-                    <p className="text-gray-500 text-xs">{course.instructor}</p>
+        {/* Study time */}
+        <div className="rounded-2xl p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <h2 className="font-semibold text-white text-lg mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>Study time</h2>
+          <p className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.4)' }}>Hours per course this week</p>
+          <div className="space-y-4">
+            {studyTime.map((c) => {
+              const max = Math.max(...studyTime.map(x => x.hours), 1);
+              const pct = (c.hours / max) * 100;
+              const isRisk = c.hours < 5;
+              return (
+                <div key={c.courseName}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-medium text-white">{c.courseName}</span>
+                    <span className="text-xs font-semibold" style={{ color: isRisk ? '#f59e0b' : '#00D2C8' }}>{c.hours}h</span>
                   </div>
-                  <Badge variant="default">{course.grade || 'N/A'}</Badge>
+                  <div className="h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.8, delay: 0.2 }}
+                      className="h-full rounded-full"
+                      style={{ background: isRisk ? '#f59e0b' : 'linear-gradient(90deg, #6C63FF, #00D2C8)' }}
+                    />
+                  </div>
                 </div>
-              ))}
-            </div>
-          </Card>
+              );
+            })}
+          </div>
         </div>
-      </div>
-    </AppLayout>
+      </motion.div>
+    </motion.div>
   );
-};
+}
